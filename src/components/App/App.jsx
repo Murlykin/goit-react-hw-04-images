@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import { useState, useEffect } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import {GlobalStyle} from 'components/GlobalStyle';
 import 'react-toastify/dist/ReactToastify.css';
@@ -17,112 +17,89 @@ const Status = {
   REJECTED: 'rejected',
 };
 
-class App extends Component {
-  state = {
-    query: '',
-    images: [],
-    status: Status.IDLE,
-    page: 1,
-    PER_PAGE: 12,
-    totalHits: null,
-    totalPages: null,
-    showModal: false,
-    modalImage: null,
-    modalAlt: null,
+export default function App() {
+  const [query, setQuery] = useState('');
+  const [images, setImages] = useState([]);
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState(Status.IDLE);
+  const PER_PAGE = 12;
+  const [totalPages, setTotalPages] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [modalImage, setModalImage] = useState(null);
+  const [modalAlt, setModalAlt] = useState(null);
+
+   const handleInputValue = searchQuery => {
+    if (query === searchQuery) {
+      toast.error('Enter keywords to request!');
+      return;
+    }
+    setQuery(searchQuery);
+    setPage(1);
+    setImages([]);
   };
 
-  async componentDidUpdate(_, prevState) {
-    const { query, page } = this.state;
-    const prevQuery = prevState.query;
-    const nextQuery = query;
-    const prevPage = prevState.page;
-    const nextPage = page;
+  const handleShowModal = (src, alt) => {
+    toggleModal();
+    setModalImage(src);
+    setModalAlt(alt);
+  };
 
-    if (prevQuery !== nextQuery || prevPage !== nextPage) {
-      this.setState({ status: Status.PENDING });
-      await this.fetchImages(query, page);
+  const toggleModal = () => {
+    setShowModal(!showModal);
+  };
+
+  const incrementPage = () => {
+    setPage(prevPage => prevPage + 1);
+  };
+
+  const handleLoadMore = e => {
+    incrementPage();
+  };
+
+  useEffect(() => {
+    if (page === totalPages) {
+      toast.success('There are all images!');
     }
-  }
+  }, [page, totalPages]);
 
-  fetchImages = async (query, page) => {
-    const { PER_PAGE } = this.state;
+  useEffect(() => {
+    if (query === '') {
+      return;
+    }
+
+    setStatus(Status.PENDING);
+
     API(query, page)
       .then(({ hits, totalHits }) => {
         if (hits.length === 0) {
-          toast.error(`Nothing found on request ${query}`, {
+          toast.error(`По запросу ${query} ничего не найдено`, {
             duration: 1000,
           });
           return Promise.reject();
         }
-
-        this.setState(prevState => {
-          return {
-            images: [...prevState.images, ...hits],
-            totalHits: totalHits,
-            totalPages: Math.ceil(totalHits / PER_PAGE),
-            status: Status.RESOLVED,
-          };
-        });
-        if (page === this.state.totalPages) {
-          toast.success('There are all images!');
-        }
+        setImages(prevImages => [...prevImages, ...hits]);
+        setTotalPages(Math.ceil(totalHits / PER_PAGE));
+        setStatus(Status.RESOLVED);
       })
-      .catch(error => this.setState({ status: Status.REJECTED }));
-  };
+      .catch(error => setStatus(Status.REJECTED));
+  }, [query, page]);
 
-  handleInputValue = searchQuery => {
-    this.setState({ query: searchQuery, page: 1, images: [] });
-  };
-
-  incrementPage = () => {
-    this.setState(prevState => {
-      return { page: prevState.page + 1 };
-    });
-  };
-
-  handleLoadMore = e => {
-    this.incrementPage();
-  };
-
-  toggleModal = () => {
-    this.setState(({ showModal }) => ({ showModal: !showModal }));
-  };
-
-  handleShowModal = (src, alt) => {
-    this.toggleModal();
-    this.setState({ modalImage: src, modalAlt: alt });
-  };
-
-  render() {
-    const {
-      images,
-      page,
-      totalPages,
-      status,
-      showModal,
-      modalImage,
-      modalAlt,
-    } = this.state;
-
-    return (
-      <AppStyles>
-        <GlobalStyle />
-        <Searchbar onSubmit={this.handleInputValue} />
-        {status === 'pending' && page === 1 && <Loader />}
-        {images.length > 0 && (
-          <ImageGallery images={images} onClick={this.handleShowModal} />
-        )}
-        {status === 'pending' && page > 1 && <Loader />}
-        {status === 'resolved' && page < totalPages && (
-          <Button onClick={this.handleLoadMore} status={status} />
-        )}
-        <ToastContainer autoClose={3000} theme={'colored'} />
-        {showModal && (
-          <Modal src={modalImage} title={modalAlt} onClose={this.toggleModal} />
-        )}
-      </AppStyles>
-    );
-  }
+  return (
+    <AppStyles>
+      <GlobalStyle/>
+      <Searchbar onSubmit={handleInputValue} />
+      {status === Status.PENDING && page === 1 && <Loader />}
+      {images.length > 0 && (
+        <ImageGallery images={images} onClick={handleShowModal} />
+      )}
+      {status === Status.PENDING && page > 1 && <Loader />}
+      {status === Status.RESOLVED && page < totalPages && (
+        <Button onClick={handleLoadMore} status={status} />
+      )}
+      <ToastContainer autoClose={3000} theme={'colored'} />
+      {showModal && (
+        <Modal src={modalImage} title={modalAlt} onClose={toggleModal} />
+      )}
+    </AppStyles>
+  );
 }
-
-export default App;
